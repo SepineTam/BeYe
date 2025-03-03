@@ -1,0 +1,62 @@
+# Made by Claude 3.7 sonnet
+
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # 每周日运行
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  update-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-tools
+          
+      - name: Update dependencies
+        run: |
+          pip list --outdated --format=json | python -c "
+          import json, sys
+          outdated = json.load(sys.stdin)
+          with open('requirements.txt', 'r') as f:
+              reqs = f.read().splitlines()
+          updated = []
+          for req in reqs:
+              pkg = req.split('>=')[0] if '>=' in req else req
+              for item in outdated:
+                  if item['name'] == pkg:
+                      updated.append(f'{pkg}>={item["latest_version"]}')
+                      break
+              else:
+                  updated.append(req)
+          with open('requirements.txt', 'w') as f:
+              f.write('\n'.join(updated) + '\n')
+          "
+          
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: '🔄 更新依赖包版本'
+          title: '🔄 自动更新依赖包版本'
+          body: |
+            此PR由自动化工作流创建，用于更新项目依赖包的版本。
+            
+            更新说明：
+            - 自动检查并更新过时的依赖包
+            - 保持版本号格式一致（使用 >= 符号）
+            
+            请检查更新是否会影响项目功能。
+          branch: update-dependencies
+          delete-branch: true
+          labels: dependencies
+          base: main
